@@ -1,3 +1,30 @@
 
+*.o
+*.m4
+cgminer
+*.lo
+*.la
+*.a
+.deps
+compat
+x11
+lib
+ccan
 
-
+Makefile
+Makefile.in
+arm-xilinx-linux-gnueabi-libtool
+autom4te.cache/
+compile
+config.guess
+config.h
+config.h.in
+config.log
+config.status
+config.sub
+configure
+depcomp
+install-sh
+ltmain.sh
+missing
+stamp-h1

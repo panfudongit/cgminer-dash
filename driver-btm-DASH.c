@@ -2125,7 +2125,7 @@ void chain_inactive(int const which_chain)
 }
 
 
-inline void set_address(int const which_chain, unsigned char chip_addr)
+void set_address(int const which_chain, unsigned char chip_addr)
 {
     unsigned char cmd_buf[5] = {0};
     int fd = dev.dev_fd[which_chain];
@@ -4038,7 +4038,7 @@ int create_bitmain_check_fan_pthread(void)
 }
 
 int fan_error_num = 0;
-inline int check_fan_ok()
+int check_fan_ok()
 {
     int ret = 0;
     if(dev.fan_num < MIN_FAN_NUM)
@@ -4796,20 +4796,20 @@ void *DASH_fill_work(void *usrdata)
     }
 }
 
-inline void add_point(int * point,int MAX_SIZE)
+void add_point(int * point,int MAX_SIZE)
 {
     (*point)++;
     if((*point) >= MAX_SIZE)
         (*point) = 0;
 }
 
-inline int use_point_sub_1(int point,int MAX_SIZE)
+int use_point_sub_1(int point,int MAX_SIZE)
 {
     return (point == 0) ? MAX_SIZE -1 : point -1;
 }
 
 
-inline int use_point_add_1(int point,int MAX_SIZE)
+int use_point_add_1(int point,int MAX_SIZE)
 {
     return (point >= MAX_SIZE -1) ? 0 : (point + 1) ;
 }

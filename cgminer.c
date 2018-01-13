@@ -392,12 +392,12 @@ char g_miner_version[256] = {0};        // store cgminer version number
 char g_miner_compiletime[256] = {0};
 char g_miner_type[256] = {0};
 
-extern int opt_bitmain_fan_pwm;     // if not control fan speed according to temperature, use this parameter to control fan speed
-extern bool opt_bitmain_fan_ctrl;   // false: control fan speed according to temperature; true: use opt_bitmain_fan_pwm to control fan speed
-extern int opt_bitmain_DASH_freq;
-extern int opt_bitmain_DASH_voltage;
-extern int8_t opt_bitmain_DASH_core_temp;
-extern int last_temperature, temp_highest;
+int opt_bitmain_fan_pwm;     // if not control fan speed according to temperature, use this parameter to control fan speed
+bool opt_bitmain_fan_ctrl;   // false: control fan speed according to temperature; true: use opt_bitmain_fan_pwm to control fan speed
+int opt_bitmain_DASH_freq;
+int opt_bitmain_DASH_voltage;
+int8_t opt_bitmain_DASH_core_temp;
+int last_temperature, temp_highest;
 
 
 double rolling1, rolling5, rolling15;

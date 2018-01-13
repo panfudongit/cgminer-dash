@@ -33,7 +33,7 @@ unsigned int crc16_table[256] = {
 	0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
 };
 
-unsigned short crc16(const unsigned char *buffer, int len)
+unsigned short crc16b(const unsigned char *buffer, int len)
 {
 	unsigned short crc;
 

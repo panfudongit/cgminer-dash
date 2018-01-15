@@ -152,7 +152,6 @@ static bool wq_enqueue(struct work_queue *wq, struct work *work)
 		return false;
 	struct work_ent *we = malloc(sizeof(*we));
 	assert(we != NULL);
-	printf("dongfupang %s() %d work = %08x\n", __func__, __LINE__, work);
 	we->work = work;
 	INIT_LIST_HEAD(&we->head);
 	list_add_tail(&we->head, &wq->head);
@@ -174,6 +173,32 @@ static struct work *wq_dequeue(struct work_queue *wq)
 	free(we);
 	wq->num_elems--;
 	return work;
+}
+
+
+static void applog_hexdumpd(char *prefix, uint8_t *buff, int len, int level)
+{
+	static char line[256];
+	char *pos = line;
+	int i;
+	if (len < 1)
+		return;
+
+	pos += sprintf(pos, "%s: %d bytes:", prefix, len);
+	for (i = 0; i < len; i++) {
+		if (i > 0 && (i % 32) == 0) {
+			applog(LOG_ERR, "%s", line);
+			pos = line;
+			pos += sprintf(pos, "\t");
+		}
+		pos += sprintf(pos, "%.2X ", buff[i]);
+	}
+	applog(level, "%s", line);
+}
+
+static void hexdumpd(char *prefix, uint8_t *buff, int len)
+{
+	applog_hexdumpd(prefix, buff, len, LOG_ERR);
 }
 
 /********** temporary helper for hexdumping SPI traffic */
@@ -411,10 +436,10 @@ static bool cmd_WRITE_JOB(struct T3_chain *t3, uint8_t chip_id,
 //	int ack_pos = tx_len + poll_len - ack_len;
 //	hexdump("poll: ACK", t3->spi_rx + ack_pos, tx_len);
 
-	//printf("[write job] \r\n");
-	//hexdump("job:", spi_tx, JOB_LENGTH);
+	printf("[write job] \r\n");
+	hexdumpd("job:", t3->spi_tx, JOB_LENGTH);
 
-	cgsleep_us(1000);
+	cgsleep_us(100000);
 
 	if(cmd_CHECK_BUSY(t3, chip_id) != WORK_BUSY)
 	{
@@ -511,92 +536,18 @@ static bool set_pll_config(struct T3_chain *t3, int idxpll)
 	uint8_t temp_reg[REG_LENGTH];
 	int i;
 
-	index = 0;
-	for(i = 0; i < 8 && idxpll >= 0; i++, idxpll--)//max vco=1296, pll=162
+	for(i = 0; i < 1; i++)//max vco=1296, pll=162
 	{
-		pll_init[index][1] = 80 + (i * 4);
-		vco = pll_init[index][1] * 12;
+		vco = pll_init[0][1] * 12;
 		clock = vco / 8;
 
-		memcpy(temp_reg, pll_init[index], REG_LENGTH-2);
-		//applog(LOG_WARNING, "setting PLL:"
-	    //   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x",
-	    //   temp_reg[0], temp_reg[1], temp_reg[2],
-	    //   temp_reg[3], temp_reg[4], temp_reg[5],
-	    //   temp_reg[6], temp_reg[7], temp_reg[8],
-	    //   temp_reg[9], temp_reg[10], temp_reg[11]);
-	    if (!cmd_WRITE_REG(t3, ADDR_BROADCAST, temp_reg))
-		{
-			applog(LOG_WARNING, "set PLL %d MHz fail vco %d MHz", clock, vco);
-			return false;
-		}
-		applog(LOG_WARNING, "set PLL %d MHz success vco %d MHz", clock, vco);
-
-		cgsleep_us(200000);
-	}
-
-	index = 1;
-	for(i = 0 ; i < 26 && idxpll >= 0; i++, idxpll--)//start i = 9 max vco=1272, pll= 318
-	{
-		pll_init[index][1] = 56 + (i * 2);
-		vco = pll_init[index][1] * 12;
-		clock = vco / 4;
-
-		memcpy(temp_reg, pll_init[index], REG_LENGTH-2);
-		//applog(LOG_WARNING, "setting PLL:"
-	    //   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x",
-	    //   temp_reg[0], temp_reg[1], temp_reg[2],
-	    //   temp_reg[3], temp_reg[4], temp_reg[5],
-	    //   temp_reg[6], temp_reg[7], temp_reg[8],
-	    //   temp_reg[9], temp_reg[10], temp_reg[11]);
-	    if (!cmd_WRITE_REG(t3, ADDR_BROADCAST, temp_reg))
-		{
-			applog(LOG_WARNING, "set PLL %d MHz fail vco %d MHz", clock, vco);
-			return false;
-		}
-		applog(LOG_WARNING, "set PLL %d MHz success vco %d MHz", clock, vco);
-
-		cgsleep_us(200000);
-	}
-
-	index = 2;
-	for(i = 0; i < 53 && idxpll >= 0; i++, idxpll--)
-	{
-		pll_init[index][1] = 54 + (i * 1);
-		vco = pll_init[index][1] * 12;
-		clock = vco / 2;
-
-		memcpy(temp_reg, pll_init[index], REG_LENGTH-2);
-		//applog(LOG_WARNING, "setting PLL:"
-	    //   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x",
-	    //   temp_reg[0], temp_reg[1], temp_reg[2],
-	    //   temp_reg[3], temp_reg[4], temp_reg[5],
-	    //   temp_reg[6], temp_reg[7], temp_reg[8],
-	    //   temp_reg[9], temp_reg[10], temp_reg[11]);
-	    if (!cmd_WRITE_REG(t3, ADDR_BROADCAST, temp_reg))
-		{
-			applog(LOG_WARNING, "set PLL %d MHz fail vco %d MHz", clock, vco);
-			return false;
-		}
-		applog(LOG_WARNING, "set PLL %d MHz success vco %d MHz", clock, vco);
-
-		cgsleep_us(200000);
-	}
-
-	index = 3;
-	for(i = 0; i < 38 && idxpll >= 0; i++, idxpll = idxpll - 2) //max pll 1044
-	{
-		pll_init[index][1] = 54 + (i * 1);
-		vco = pll_init[index][1] * 12;
-		clock = vco / 1;
-
-		memcpy(temp_reg, pll_init[index], REG_LENGTH-2);
-		//applog(LOG_WARNING, "setting PLL:"
-	    //   "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x",
-	    //   temp_reg[0], temp_reg[1], temp_reg[2],
-	    //   temp_reg[3], temp_reg[4], temp_reg[5],
-	    //   temp_reg[6], temp_reg[7], temp_reg[8],
-	    //   temp_reg[9], temp_reg[10], temp_reg[11]);
+		memcpy(temp_reg, pll_init[0], REG_LENGTH-2);
+		applog(LOG_WARNING, "setting PLL:"
+	       "0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x",
+	       temp_reg[0], temp_reg[1], temp_reg[2],
+	       temp_reg[3], temp_reg[4], temp_reg[5],
+	       temp_reg[6], temp_reg[7], temp_reg[8],
+	       temp_reg[9], temp_reg[10], temp_reg[11]);
 	    if (!cmd_WRITE_REG(t3, ADDR_BROADCAST, temp_reg))
 		{
 			applog(LOG_WARNING, "set PLL %d MHz fail vco %d MHz", clock, vco);
@@ -811,7 +762,7 @@ static uint8_t *create_job(uint8_t chip_id, uint8_t job_id, struct work *work)
 	static uint8_t job[JOB_LENGTH] = {
 		/* command */
 		0x00, 0x00,
-		/* wdata 63 to 0 */
+		/* wdata 75 to 0 */
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -820,10 +771,9 @@ static uint8_t *create_job(uint8_t chip_id, uint8_t job_id, struct work *work)
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		/* start nonce */
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00,
-		/* wdata 75 to 64 */
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		/* start nonce */
 		0x00, 0x00, 0x00, 0x00,
 		/* difficulty */
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -834,14 +784,12 @@ static uint8_t *create_job(uint8_t chip_id, uint8_t job_id, struct work *work)
 	};
 	
 	uint8_t diffIdx;
-	uint8_t data63to0[76];
-	uint8_t data75to64[12];
+	uint8_t data75to0[76];	
+	uint8_t startnonce[4] = {0x00, 0x00, 0x00, 0x00};
 	uint8_t diff[8] = {0x1e, 0x00, 0x00, 0x00, 0x00, 0x03, 0xff, 0xff};
-	uint8_t startnonce[4] = {0x00, 0x00, 0x00, 0x00};	
 	uint8_t endnonce[4] = {0x00, 0x40, 0x00, 0x00}; // 10s
 
-	memcpy(data63to0, wdata, 76);
-	//memcpy(data75to64, wdata+64, 16);
+	memcpy(data75to0, wdata, 76);
 
 	if(sdiff > 65535.0)
 		memcpy(diff, difficult_Tbl[16], 8);
@@ -884,19 +832,17 @@ static uint8_t *create_job(uint8_t chip_id, uint8_t job_id, struct work *work)
 	endnonce[2]=0xff;
 	endnonce[3]=0xff;
 
-	rev(data63to0, 76);
+	rev(data75to0, 76);
 	rev(startnonce, 4);
-	rev(data75to64, 16);
 	rev(diff, 8);
 	rev(endnonce, 4);
 
 	job[0] = (job_id << 4) | T3_WRITE_JOB;
 	job[1] = chip_id;
-	memcpy(job+2,			data63to0,	76);
-	memcpy(job+2+76,			startnonce, 4);
-	//memcpy(job+2+64+4,		data75to64, 16);
-	memcpy(job+2+64+4+12,	diff, 8);
-	memcpy(job+2+64+4+12+8, 	endnonce, 4);
+	memcpy(job+2,			data75to0,	76);
+	memcpy(job+2+76,		startnonce, 4);
+	memcpy(job+2+76+4,	    diff, 8);
+	memcpy(job+2+76+4+8, 	endnonce, 4);
 
 	/* crc */
 	memset(tmp_buf, 0, sizeof(tmp_buf));
@@ -1339,7 +1285,7 @@ static int64_t T3_scanwork(	struct thr_info *thr)
 			break;
 
 		nonce = bswap_32(nonce);   //modify for A4
-
+		printf("dongfupang %s() %d nonce = %08x\n", __func__, __LINE__, nonce);
 		work_updated = true;
 		if (chip_id < 1 || chip_id > t3->num_active_chips) 
 		{

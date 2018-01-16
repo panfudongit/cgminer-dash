@@ -134,4 +134,5 @@ struct T3_board {
 	struct T3_chain *chain[MAX_CHAINS_PER_BOARD];
 };
 
+void loop_main_test(void);
 #endif /* T3_COMMON_H */

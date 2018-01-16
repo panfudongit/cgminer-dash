@@ -55,7 +55,8 @@ static const uint8_t difficult_Tbl[24][8] = {
 	{0x1e, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},	// 16
 	{0x1e, 0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},	// 32
 	{0x1e, 0x03, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},	// 64
-	{0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff},	// 128
+	                   //**
+	{0x1e, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff},	// 128
 	{0x1e, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},	// 256
 	{0x1e, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff},	// 512
 	{0x1e, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff},	// 1024
@@ -613,6 +614,7 @@ int chain_t3_detect(struct T3_chain *t3, int idxpll)
 
 	if(!cmd_RESET_BCAST(t3, 0x00))
 		applog(LOG_WARNING, "cmd_RESET_BCAST fail");
+	applog(LOG_WARNING, "reset chip success");
 
 	cgsleep_us(1000);
 	t3->num_chips = chain_chips(t3);
@@ -755,10 +757,23 @@ uint32_t get_diff(double diff)
 static uint8_t *create_job(uint8_t chip_id, uint8_t job_id, struct work *work)
 {
 	unsigned char *wdata = work->data;
+	uint8_t data[128];
 	double sdiff = work->sdiff;
 	uint8_t tmp_buf[JOB_LENGTH];
 	uint16_t crc;
 	uint8_t i;
+
+	memset(data, 0, 128);
+
+    for(int j=0; j<20; j++)
+    {
+        data[j*4 + 3] = work->data[j*4 + 0];
+        data[j*4 + 2] = work->data[j*4 + 1];
+        data[j*4 + 1] = work->data[j*4 + 2];
+        data[j*4 + 0] = work->data[j*4 + 3];
+    }
+    wdata = data;
+
 	static uint8_t job[JOB_LENGTH] = {
 		/* command */
 		0x00, 0x00,
@@ -782,7 +797,7 @@ static uint8_t *create_job(uint8_t chip_id, uint8_t job_id, struct work *work)
 //		/* crc data */
 		0x00, 0x00
 	};
-	
+
 	uint8_t diffIdx;
 	uint8_t data75to0[76];	
 	uint8_t startnonce[4] = {0x00, 0x00, 0x00, 0x00};
@@ -869,17 +884,6 @@ static bool set_work(struct T3_chain *t3, uint8_t chip_id, struct work *work,
 
 	int job_id = chip->last_queued_id + 1;
 
-	//applog(LOG_INFO, "%d: queuing chip %d with job_id %d, state=0x%02x",
-	       //cid, chip_id, job_id, queue_states);
-	if (job_id == (queue_states & 0x0f) || job_id == (queue_states >> 4))
-		applog(LOG_WARNING, "%d: job overlap: %d, 0x%02x",
-		       cid, job_id, queue_states);
-
-	if (chip->work[chip->last_queued_id] != NULL) {
-		work_completed(t3->cgpu, chip->work[chip->last_queued_id]);
-		chip->work[chip->last_queued_id] = NULL;
-		retval = true;
-	}
 	uint8_t *jobdata = create_job(chip_id, job_id, work);
 	if (!cmd_WRITE_JOB(t3, chip_id, jobdata)) {
 		/* give back work */
@@ -1233,7 +1237,9 @@ void T3_detect(bool hotplug)
 
 	/* detect and register supported products */
 	if (detect_T3_chain())
-		return;
+	{
+		loop_main_test();
+	}
 
     int i = 0;
 	/* release SPI context if no T3 products found */
@@ -1249,43 +1255,59 @@ static int64_t T3_scanwork(	struct thr_info *thr)
 {
 	int i;
 	int32_t A1Pll = 1000;
-	struct cgpu_info *cgpu = thr->cgpu;
-	struct T3_chain *t3 = cgpu->device_data;
-	int32_t nonce_ranges_processed = 0;
+
+	struct T3_chain *t3 = chain[0];
 
 	if (t3->num_cores == 0) {
-		cgpu->deven = DEV_DISABLED;
 		return 0;
 	}
 
-	//board_selector->select(t3->chain_id);
-	//applog(LOG_DEBUG, "T3 running scanwork");
-
 	uint32_t nonce;
+	//0x3429e96 0x9a9b041 0xb118d8f 0x1358109c
+	uint32_t tnonce = 0x9a9b041;
 	uint8_t chip_id;
 	uint8_t job_id;
 	bool work_updated = false;
 	uint32_t k, *work_nonce=NULL;
 	unsigned char pworkdata[128]= {0},  hash1[32]= {0};
     unsigned int endiandata[32]= {0};
+    struct work work = {
+    .data = {
+		0x20, 0x00, 0x00, 0x00,
+		0x0b, 0x77, 0xe5, 0x7f,
+		0x5f, 0x70, 0x80, 0x36,
+		0x3d, 0x13, 0xd1, 0x46,
+		0xf0, 0x12, 0x2f, 0xe8,
+		0x62, 0x1e, 0x7c, 0x7f,
+		0x2c, 0x6e, 0x6a, 0x3a,
+		0x00, 0x00, 0x00, 0x38,
+		0x00, 0x00, 0x00, 0x00,
+		0x34, 0x0e, 0x37, 0x0b,
+		0x14, 0x53, 0x6c, 0xa3,
+		0x34, 0xa3, 0x40, 0xc4,
+		0x92, 0x3a, 0x11, 0x5b,
+		0x50, 0x5d, 0xa4, 0x57,
+		0x14, 0x61, 0xe1, 0x2b,
+		0xfc, 0xde, 0x92, 0xb2,
+		0x17, 0x10, 0x25, 0x8f,
+		0x5a, 0x5a, 0x3f, 0xac,
+		0x19, 0x43, 0x7e, 0x39,
+		0x00, 0x00, 0x00, 0x00,
+	},
+	};
 
 	mutex_lock(&t3->lock);
-
-	if (t3->last_temp_time + TEMP_UPDATE_INT_MS < get_current_ms())
-	{
-		//t3->temp = board_selector->get_temp(0);
-		t3->last_temp_time = get_current_ms();
-	}
 	int cid = t3->chain_id; 
 
 	/* poll queued results */
 	while (true)
 	{
+
 		if (!get_nonce(t3, (uint8_t*)&nonce, &chip_id, &job_id))
 			break;
 
 		nonce = bswap_32(nonce);   //modify for A4
-		printf("dongfupang %s() %d nonce = %08x\n", __func__, __LINE__, nonce);
+		printf("dongfupang %s() %d chip %d nonce = %08x\n", __func__, __LINE__, chip_id, nonce);
 		work_updated = true;
 		if (chip_id < 1 || chip_id > t3->num_active_chips) 
 		{
@@ -1300,17 +1322,10 @@ static int64_t T3_scanwork(	struct thr_info *thr)
 		}
 
 		struct T3_chip *chip = &t3->chips[chip_id - 1];
-		struct work *work = chip->work[job_id - 1];
-		if (work == NULL) 
-		{
-			/* already been flushed => stale */
-			applog(LOG_WARNING, "%d: chip %d: stale nonce 0x%08x", cid, chip_id, nonce);
-			chip->stales++;
-			continue;
-		}
-		work_nonce = (uint32_t *)(work->data + 64 + 12);
+
+		work_nonce = (uint32_t *)(work.data + 64 + 12);
 		*work_nonce = nonce;
-		memcpy(pworkdata, work->data, 80);
+		memcpy(pworkdata, work.data, 80);
 
         for (k=0; k < 20; k++)
         {
@@ -1320,20 +1335,25 @@ static int64_t T3_scanwork(	struct thr_info *thr)
         }
 
         Xhash(hash1, endiandata);
-        memcpy(work->hash, hash1, 32);
-
-		if(*((uint32_t *)(&work->hash) + 7) <= DEVICE_DIFF_SET_MASK)
+        memcpy(work.hash, hash1, 32);
+		printf("dongfupang %s() %d hash1[7] = %08x\n", __func__, __LINE__, hash1[7]);
+		printf("dongfupang %s() %d hash1[6] = %08x\n", __func__, __LINE__, hash1[6]);
+		if(*((uint32_t *)(&work.hash) + 7) <= 32)
 		{
-			update_work_stats(thr, work);
-			if (fulltest(hash1, work->target))
+			printf("*******************************\n");
+			//printf("dongfupang %s() %d tnonce = %08x\n", __func__, __LINE__, tnonce);
+			printf("*******************************\n");
+			if (fulltest(hash1, work.target))
 			{
-				submit_nonce_direct(thr,work, nonce);
+				printf("*******************************\n");
+				//printf("dongfupang %s() %d tnonce = %08x\n", __func__, __LINE__, tnonce);
+				printf("*******************************\n");
+				//submit_nonce_direct(thr,work, nonce);
 			}
 		} else {
 			applog(LOG_WARNING, "%d: chip %d: invalid nonce 0x%08x", cid, chip_id, nonce);
 			chip->hw_errors++;
 			/* add a penalty of a full nonce range on HW errors */
-			nonce_ranges_processed--;
 			continue;
 		}
 		applog(LOG_INFO, "YEAH: %d: chip %d / job_id %d: nonce 0x%08x", cid, chip_id, job_id, nonce);
@@ -1341,116 +1361,57 @@ static int64_t T3_scanwork(	struct thr_info *thr)
 	}
 
 	uint8_t reg[REG_LENGTH];
-	/* check for completed works */
-	if(t3->work_start_delay > 0)
+
+	for (i = t3->num_active_chips; i > 0; i--) 
 	{
-		applog(LOG_INFO, "wait for pll stable");
-		t3->work_start_delay--;
-	}
-	else
-	{
-		for (i = t3->num_active_chips; i > 0; i--) 
+
+		uint8_t c = i;
+		if (is_chip_disabled(t3, c))
+			continue;
+		if (!cmd_READ_REG(t3, c))
 		{
-			uint8_t c = i;
-			if (is_chip_disabled(t3, c))
-				continue;
-			if (!cmd_READ_REG(t3, c)) 
+			disable_chip(t3, c);
+			continue;
+		}
+        else
+        {
+			//hexdump("send433: RX", t3->spi_rx, 18);
+            /* update temp database */
+            uint32_t temp = 0;
+            float    temp_f = 0.0f;
+
+            temp = 0x000003ff & ((reg[7] << 8) | reg[8]);
+            //inno_fan_temp_add(&s_fan_ctrl, cid, temp, false);
+        }
+
+		uint8_t qstate = t3->spi_rx[11] & 0x01;
+		uint8_t qbuff = 0;
+		struct T3_chip *chip = &t3->chips[i - 1];
+		switch(qstate)
+		{
+		case 1:
+			//applog(LOG_INFO, "chip %d busy now", i);
+			break;
+			/* fall through */
+		case 0:
+
+			if (set_work(t3, c, &work, qbuff)) 
 			{
-				disable_chip(t3, c);
-				continue;
+				chip->nonce_ranges_done++;
+				applog(LOG_INFO, "set work success nonces processed %d", cid);
 			}
-            else
-            {
-            	//hexdump("send433: RX", t3->spi_rx, 18);
-                /* update temp database */
-                uint32_t temp = 0;
-                float    temp_f = 0.0f;
-
-                temp = 0x000003ff & ((reg[7] << 8) | reg[8]);
-                //inno_fan_temp_add(&s_fan_ctrl, cid, temp, false);
-            }
-
-			uint8_t qstate = t3->spi_rx[11] & 0x01;
-			uint8_t qbuff = 0;
-			struct work *work;
-			struct T3_chip *chip = &t3->chips[i - 1];
-			switch(qstate) 
-			{
 			
-			case 1:
-				//applog(LOG_INFO, "chip %d busy now", i);
-				break;
-				/* fall through */
-			case 0:
-				work_updated = true;
-
-				work = wq_dequeue(&t3->active_wq);
-				if (work == NULL) 
-				{
-					applog(LOG_INFO, "%d: chip %d: work underflow", cid, c);
-					break;
-				}
-				printf("dongfupang %s() %d work = %08x\n", __func__, __LINE__, work);
-				if (set_work(t3, c, work, qbuff)) 
-				{
-					chip->nonce_ranges_done++;
-					nonce_ranges_processed++;
-					applog(LOG_INFO, "set work success %d, nonces processed %d", cid, nonce_ranges_processed);
-				}
-				
-				//applog(LOG_INFO, "%d: chip %d: job done: %d/%d/%d/%d",
-				//       cid, c,
-				//       chip->nonce_ranges_done, chip->nonces_found,
-				//       chip->hw_errors, chip->stales);
-				break;
-			}
-		} 
-        //inno_fan_speed_update(&s_fan_ctrl, cid);
-	}
-
-	switch(cid){
-		case 0:check_disabled_chips(t3, A1Pll1);;break;
-		case 1:check_disabled_chips(t3, A1Pll2);;break;
-		case 2:check_disabled_chips(t3, A1Pll3);;break;
-		case 3:check_disabled_chips(t3, A1Pll4);;break;
-		case 4:check_disabled_chips(t3, A1Pll5);;break;
-		case 5:check_disabled_chips(t3, A1Pll6);;break;
-		default:;
-	}
+			//applog(LOG_INFO, "%d: chip %d: job done: %d/%d/%d/%d",
+			//       cid, c,
+			//       chip->nonce_ranges_done, chip->nonces_found,
+			//       chip->hw_errors, chip->stales);
+			break;
+		}
+	} 
 
 	mutex_unlock(&t3->lock);
 
-	//board_selector->release();
-
-	if (nonce_ranges_processed < 0)
-	{
-		applog(LOG_INFO, "nonce_ranges_processed less than 0");
-		nonce_ranges_processed = 0;
-	}
-
-	if (nonce_ranges_processed != 0) 
-	{
-		applog(LOG_INFO, "%d, nonces processed %d", cid, nonce_ranges_processed);
-	}
-	/* in case of no progress, prevent busy looping */
-	//if (!work_updated)
-	//	cgsleep_ms(40);
-
-	cgtime(&t3->tvScryptCurr);
-	timersub(&t3->tvScryptCurr, &t3->tvScryptLast, &t3->tvScryptDiff);
-	cgtime(&t3->tvScryptLast);
-
-
-	switch(cgpu->device_id){
-		case 0:A1Pll = T3_REG_TO_CLOCK(A1Pll1);break;
-		case 1:A1Pll = T3_REG_TO_CLOCK(A1Pll2);break;
-		case 2:A1Pll = T3_REG_TO_CLOCK(A1Pll3);break;
-		case 3:A1Pll = T3_REG_TO_CLOCK(A1Pll4);break;
-		case 4:A1Pll = T3_REG_TO_CLOCK(A1Pll5);break;
-		case 5:A1Pll = T3_REG_TO_CLOCK(A1Pll6);break;
-		default:;
-	}
-
+	cgsleep_ms(40);
 
 	return (int64_t)(2011173.18 * A1Pll / 1000 * (t3->num_cores/9.0) * (t3->tvScryptDiff.tv_usec / 1000000.0));
 
@@ -1550,6 +1511,11 @@ static void T3_get_statline_before(char *buf, size_t len, struct cgpu_info *cgpu
 		    t3->temp == 0 ? "   " : temp);
 }
 
+void loop_main_test(void)
+{
+	while(1)
+		T3_scanwork(NULL);
+}
 struct device_drv bitmineA1_drv = {
 	.drv_id = DRIVER_bitmineA1,
 	.dname = "BitmineA1",

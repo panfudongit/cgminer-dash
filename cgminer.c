@@ -11042,6 +11042,9 @@ int main(int argc, char *argv[])
     /* Use the DRIVER_PARSE_COMMANDS macro to detect all devices */
     DRIVER_PARSE_COMMANDS(DRIVER_DRV_DETECT_ALL)
 
+	while(1)
+		;
+
     if (opt_display_devs)
     {
         applog(LOG_ERR, "Devices detected:");

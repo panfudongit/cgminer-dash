@@ -2298,10 +2298,14 @@ static bool parse_diff(struct pool *pool, json_t *val)
         int idiff = diff;
 
         if ((double)idiff == diff)
-            applog(LOG_DEBUG, "Pool %d difficulty changed to %d",
+        {
+            applog(LOG_WARNING, "Pool %d difficulty changed to %d",
                    pool->pool_no, idiff);
+            if (pool == current_pool())
+            	opt_diff_update = true;
+        }     
         else
-            applog(LOG_DEBUG, "Pool %d difficulty changed to %.1f",
+            applog(LOG_WARNING, "Pool %d difficulty changeda to %.1f",
                    pool->pool_no, diff);
     }
     else

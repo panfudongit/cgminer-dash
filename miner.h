@@ -1020,6 +1020,7 @@ extern FILE * g_logwork_diffs[65];
 extern int g_logwork_asicnum;
 
 extern bool opt_work_update;
+extern bool opt_diff_update;
 extern bool opt_protocol;
 extern bool have_longpoll;
 extern char *opt_kernel_path;

@@ -204,12 +204,12 @@ static uint8_t *cmd_READ_RESULT_BCAST(struct A1_chain *a1)
 	a1->spi_tx[0] = A1_READ_RESULT;
 
 	assert(spi_transfer(a1->spi_ctx, a1->spi_tx, a1->spi_rx, tx_len));
-	hexdump("send: TX", a1->spi_tx, tx_len);
-	hexdump("send: RX", a1->spi_rx, tx_len);
+	//hexdump("send: TX", a1->spi_tx, tx_len);
+	//hexdump("send: RX", a1->spi_rx, tx_len);
 
 	int poll_len = tx_len + 4 * a1->num_chips;
 	assert(spi_transfer(a1->spi_ctx, NULL, a1->spi_rx + tx_len, poll_len));
-	hexdump("poll: RX", a1->spi_rx + tx_len, poll_len);
+	//hexdump("poll: RX", a1->spi_rx + tx_len, poll_len);
 
 	uint8_t *scan = a1->spi_rx;
 	int i;

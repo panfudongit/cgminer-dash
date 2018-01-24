@@ -137,6 +137,7 @@ FILE * g_logwork_files[65] = {0};
 FILE * g_logwork_diffs[65] = {0};
 int g_logwork_asicnum = 0;
 
+bool opt_diff_update;
 bool opt_work_update;
 bool opt_protocol;
 static struct benchfile_layout
@@ -11300,6 +11301,10 @@ begin_bench:
             signal_work_update();
         opt_work_update = false;
         cp = current_pool();
+
+        if(opt_diff_update)
+        	restart_threads();
+        opt_diff_update = false;
 
         /* If the primary pool is a getwork pool and cannot roll work,
          * try to stage one extra work per mining thread */
